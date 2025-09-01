@@ -1,0 +1,10 @@
+version: "2"
+linters:
+  default: all
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines

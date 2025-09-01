@@ -29,6 +29,10 @@ of these is the `ID` type used in place of slices of keys because Golang slices 
 
 ## Limitations and sharp edges
 
-* Taskgraph has no deadlock detection.
+* Taskgraph has no deadlock detection. In theory the fact that the graph is acyclic should prevent
+  deadlock, but in practice there may be other potential causes for deadlock that have not been
+  considered.
 * Taskgraph runs every task in its own goroutine, with no limitation on how many tasks can be
   running at the same time.
+* Taskgraph is not easy to debug and understand the execution. While there is a small amount of
+  logging and tracing, there is no way to inspect the data being passed through the graph.
