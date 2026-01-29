@@ -1,5 +1,7 @@
 package taskgraph
 
+import "fmt"
+
 // TaskBuilder helps construct taskgraph Tasks with a fluent API.
 type TaskBuilder[T any] struct {
 	name            string
@@ -35,6 +37,18 @@ func (b *TaskBuilder[T]) Run(fn any) *TaskBuilder[T] {
 // RunIf sets a condition for the task execution.
 func (b *TaskBuilder[T]) RunIf(cond Condition) *TaskBuilder[T] {
 	b.condition = cond
+	return b
+}
+
+// RunIfAll sets a ConditionAnd (logical AND) for the task execution using the provided keys.
+func (b *TaskBuilder[T]) RunIfAll(keys ...ReadOnlyKey[bool]) *TaskBuilder[T] {
+	b.condition = ConditionAnd(keys)
+	return b
+}
+
+// RunIfAny sets a ConditionOr (logical OR) for the task execution using the provided keys.
+func (b *TaskBuilder[T]) RunIfAny(keys ...ReadOnlyKey[bool]) *TaskBuilder[T] {
+	b.condition = ConditionOr(keys)
 	return b
 }
 
@@ -80,54 +94,83 @@ func (b *TaskBuilder[T]) Build() TaskSet {
 	return task
 }
 
-// EffectTaskBuilder helps construct taskgraph Tasks that perform side effects (no result key).
-type EffectTaskBuilder struct {
+// MultiTaskBuilder helps construct taskgraph Tasks that provide multiple outputs or perform side effects.
+type MultiTaskBuilder struct {
 	name            string
 	depends         []any
 	fn              any
+	provides        []ID
 	condition       Condition
 	defaultBindings []Binding
 }
 
-// NewEffectTaskBuilder creates a new builder for a side-effect task.
-func NewEffectTaskBuilder(name string) *EffectTaskBuilder {
-	return &EffectTaskBuilder{
+// NewMultiTaskBuilder creates a new builder for a multi-output or side-effect task.
+func NewMultiTaskBuilder(name string) *MultiTaskBuilder {
+	return &MultiTaskBuilder{
 		name: name,
 	}
 }
 
 // DependsOn adds dependencies to the task.
-func (b *EffectTaskBuilder) DependsOn(deps ...any) *EffectTaskBuilder {
+func (b *MultiTaskBuilder) DependsOn(deps ...any) *MultiTaskBuilder {
 	b.depends = append(b.depends, deps...)
+	return b
+}
+
+// Provides declares the keys that this task provides.
+func (b *MultiTaskBuilder) Provides(keys ...any) *MultiTaskBuilder {
+	for _, k := range keys {
+		rk, err := newReflectKey(k)
+		if err != nil {
+			panic(fmt.Errorf("invalid key passed to Provides: %w", err))
+		}
+		id, err := rk.ID()
+		if err != nil {
+			panic(fmt.Errorf("invalid key ID in Provides: %w", err))
+		}
+		b.provides = append(b.provides, id)
+	}
 	return b
 }
 
 // Run sets the function to execute. The function signature must match the dependencies.
 // Fn must return []Binding or ([]Binding, error).
-func (b *EffectTaskBuilder) Run(fn any) *EffectTaskBuilder {
+func (b *MultiTaskBuilder) Run(fn any) *MultiTaskBuilder {
 	b.fn = fn
 	return b
 }
 
 // RunIf sets a condition for the task execution.
-func (b *EffectTaskBuilder) RunIf(cond Condition) *EffectTaskBuilder {
+func (b *MultiTaskBuilder) RunIf(cond Condition) *MultiTaskBuilder {
 	b.condition = cond
 	return b
 }
 
+// RunIfAll sets a ConditionAnd (logical AND) for the task execution using the provided keys.
+func (b *MultiTaskBuilder) RunIfAll(keys ...ReadOnlyKey[bool]) *MultiTaskBuilder {
+	b.condition = ConditionAnd(keys)
+	return b
+}
+
+// RunIfAny sets a ConditionOr (logical OR) for the task execution using the provided keys.
+func (b *MultiTaskBuilder) RunIfAny(keys ...ReadOnlyKey[bool]) *MultiTaskBuilder {
+	b.condition = ConditionOr(keys)
+	return b
+}
+
 // WithDefaultBindings adds arbitrary default bindings if the condition is false.
-func (b *EffectTaskBuilder) WithDefaultBindings(bindings ...Binding) *EffectTaskBuilder {
+func (b *MultiTaskBuilder) WithDefaultBindings(bindings ...Binding) *MultiTaskBuilder {
 	b.defaultBindings = append(b.defaultBindings, bindings...)
 	return b
 }
 
 // Build constructs and returns the Task.
-func (b *EffectTaskBuilder) Build() TaskSet {
+func (b *MultiTaskBuilder) Build() TaskSet {
 	reflect := ReflectMulti{
 		Name:     b.name,
 		Depends:  b.depends,
 		Fn:       b.fn,
-		Provides: nil,
+		Provides: b.provides,
 	}
 	reflect.location = getLocation(2)
 	var task TaskSet = reflect
