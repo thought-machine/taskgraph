@@ -135,9 +135,9 @@ func MissingMaybe(maybes map[string]MaybeStatus) []string {
 	return out
 }
 
-func getLocation() string {
-	// Skip 1 for this function, and 1 for the constructor calling this.
-	if _, file, line, ok := runtime.Caller(2); ok {
+func getLocation(skip int) string {
+	// Skip the requested number of stack frames.
+	if _, file, line, ok := runtime.Caller(skip); ok {
 		return fmt.Sprintf("%s:%d", file, line)
 	}
 	return "<unknown location>"
