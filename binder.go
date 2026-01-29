@@ -8,12 +8,10 @@ import (
 	set "github.com/deckarep/golang-set/v2"
 )
 
-var (
-	// ErrDuplicateBinding is returned when Binder.Store is called with a binding whose ID has already
-	// been stored (which implies that the graph being executed contains multiple tasks producing
-	// bindings for the same Key).
-	ErrDuplicateBinding = errors.New("duplicate binding")
-)
+// ErrDuplicateBinding is returned when Binder.Store is called with a binding whose ID has already
+// been stored (which implies that the graph being executed contains multiple tasks producing
+// bindings for the same Key).
+var ErrDuplicateBinding = errors.New("duplicate binding")
 
 // BindStatus represents the tristate of a Binding.
 type BindStatus int

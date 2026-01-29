@@ -7,7 +7,6 @@ import (
 	set "github.com/deckarep/golang-set/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-
 	tg "github.com/thought-machine/taskgraph"
 	tgt "github.com/thought-machine/taskgraph/taskgraphtest"
 )
@@ -45,7 +44,11 @@ func TestBindersBindingsAndKeys(t *testing.T) {
 	}
 
 	if err := b.Store(key2.Bind(456)); !errors.Is(err, tg.ErrDuplicateBinding) {
-		t.Errorf("Expected b.Store(key2.Bind(456)) to return error %v; got %v", tg.ErrDuplicateBinding, err)
+		t.Errorf(
+			"Expected b.Store(key2.Bind(456)) to return error %v; got %v",
+			tg.ErrDuplicateBinding,
+			err,
+		)
 	}
 
 	tgt.DiffPresent[string](t, b, key1, "foo")
@@ -144,7 +147,11 @@ func TestOverlayBinder(t *testing.T) {
 	tgt.ExpectPending[int](t, ob, key2)
 
 	if err := ob.Store(key1.Bind(123)); !errors.Is(err, tg.ErrDuplicateBinding) {
-		t.Errorf("Expected ob.Store(key1.Bind(123)) to return error %v; got %v", tg.ErrDuplicateBinding, err)
+		t.Errorf(
+			"Expected ob.Store(key1.Bind(123)) to return error %v; got %v",
+			tg.ErrDuplicateBinding,
+			err,
+		)
 	}
 
 	if err := ob.Store(key2.Bind(456)); err != nil {
@@ -194,10 +201,18 @@ func TestGraphTaskBinder(t *testing.T) {
 	})
 
 	if err := gtb.Store(key1.Bind(456)); !errors.Is(err, tg.ErrDuplicateBinding) {
-		t.Errorf("Expected gtb.Store(key1.Bind(456)) to return error %v; got %v", tg.ErrDuplicateBinding, err)
+		t.Errorf(
+			"Expected gtb.Store(key1.Bind(456)) to return error %v; got %v",
+			tg.ErrDuplicateBinding,
+			err,
+		)
 	}
 
 	if err := gtb.Store(key2.Bind(123)); !errors.Is(err, tg.ErrDuplicateBinding) {
-		t.Errorf("Expected gtb.Store(key2.Bind(123)) to return error %v; got %v", tg.ErrDuplicateBinding, err)
+		t.Errorf(
+			"Expected gtb.Store(key2.Bind(123)) to return error %v; got %v",
+			tg.ErrDuplicateBinding,
+			err,
+		)
 	}
 }

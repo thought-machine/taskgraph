@@ -82,7 +82,13 @@ func (k *key[T]) Get(b Binder) (T, error) {
 		typed, ok := binding.Value().(T)
 		if !ok {
 			var want T
-			return empty, wrapStackErrorf("cannot get key %q: %w (got %T, want %T)", k.id, ErrWrongType, binding.Value(), want)
+			return empty, wrapStackErrorf(
+				"cannot get key %q: %w (got %T, want %T)",
+				k.id,
+				ErrWrongType,
+				binding.Value(),
+				want,
+			)
 		}
 		return typed, nil
 	default:

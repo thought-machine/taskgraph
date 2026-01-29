@@ -81,7 +81,11 @@ func (t *task) Location() string {
 }
 
 // NewTask builds a task with any number of inputs and outputs.
-func NewTask(name string, fn func(context.Context, Binder) ([]Binding, error), depends, provides []ID) Task {
+func NewTask(
+	name string,
+	fn func(context.Context, Binder) ([]Binding, error),
+	depends, provides []ID,
+) Task {
 	return &task{
 		name:     name,
 		depends:  depends,
@@ -104,7 +108,12 @@ func NoOutputTask(name string, fn func(ctx context.Context, b Binder) error, dep
 }
 
 // SimpleTask builds a task which produces a single output binding.
-func SimpleTask[T any](name string, key Key[T], fn func(ctx context.Context, b Binder) (T, error), depends ...ID) Task {
+func SimpleTask[T any](
+	name string,
+	key Key[T],
+	fn func(ctx context.Context, b Binder) (T, error),
+	depends ...ID,
+) Task {
 	return &task{
 		name:     name,
 		depends:  depends,
@@ -121,7 +130,12 @@ func SimpleTask[T any](name string, key Key[T], fn func(ctx context.Context, b B
 }
 
 // SimpleTask1 builds a task from a function taking a single argument and returning a single value plus an error.
-func SimpleTask1[A1, Res any](name string, resKey Key[Res], fn func(ctx context.Context, arg1 A1) (Res, error), depKey1 ReadOnlyKey[A1]) Task {
+func SimpleTask1[A1, Res any](
+	name string,
+	resKey Key[Res],
+	fn func(ctx context.Context, arg1 A1) (Res, error),
+	depKey1 ReadOnlyKey[A1],
+) Task {
 	return &task{
 		name:     name,
 		depends:  []ID{depKey1.ID()},
@@ -142,7 +156,13 @@ func SimpleTask1[A1, Res any](name string, resKey Key[Res], fn func(ctx context.
 }
 
 // SimpleTask2 builds a task from a function taking two arguments and returning a single value plus an error.
-func SimpleTask2[A1, A2, Res any](name string, resKey Key[Res], fn func(ctx context.Context, arg1 A1, arg2 A2) (Res, error), depKey1 ReadOnlyKey[A1], depKey2 ReadOnlyKey[A2]) Task {
+func SimpleTask2[A1, A2, Res any](
+	name string,
+	resKey Key[Res],
+	fn func(ctx context.Context, arg1 A1, arg2 A2) (Res, error),
+	depKey1 ReadOnlyKey[A1],
+	depKey2 ReadOnlyKey[A2],
+) Task {
 	return &task{
 		name:     name,
 		depends:  []ID{depKey1.ID(), depKey2.ID()},
@@ -298,7 +318,7 @@ func AllBound(name string, result Key[bool], deps ...ID) Task {
 		name:     name,
 		depends:  deps,
 		provides: []ID{result.ID()},
-		fn: func(ctx context.Context, b Binder) ([]Binding, error) {
+		fn: func(_ context.Context, _ Binder) ([]Binding, error) {
 			return []Binding{result.Bind(true)}, nil
 		},
 		location: getLocation(),

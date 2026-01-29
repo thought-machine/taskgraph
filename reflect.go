@@ -42,7 +42,10 @@ func (rk *reflectKey) Get(b Binder) (reflect.Value, error) {
 	if !outs[1].IsNil() {
 		err, ok := outs[1].Interface().(error)
 		if !ok {
-			return reflect.Value{}, wrapStackErrorf("could not convert output 1 to error; got %T", outs[1].Interface())
+			return reflect.Value{}, wrapStackErrorf(
+				"could not convert output 1 to error; got %T",
+				outs[1].Interface(),
+			)
 		}
 		return reflect.Value{}, err
 	}
@@ -163,14 +166,21 @@ func newReflectFn(fn any, resultType reflect.Type, deps ...any) (rf *reflectFn, 
 			if !outs[1].IsNil() {
 				err, ok := outs[1].Interface().(error)
 				if !ok {
-					return nil, wrapStackErrorf("could not convert function output 1 to error; got %T", outs[1].Interface())
+					return nil, wrapStackErrorf(
+						"could not convert function output 1 to error; got %T",
+						outs[1].Interface(),
+					)
 				}
 				return nil, err
 			}
 			return outs[0].Interface(), nil
 		}
 	} else {
-		return nil, wrapStackErrorf("function should return %s or (%s, error)", resultType, resultType)
+		return nil, wrapStackErrorf(
+			"function should return %s or (%s, error)",
+			resultType,
+			resultType,
+		)
 	}
 
 	hasContext := fnType.NumIn() > 0 && fnType.In(0).Implements(contextType)
@@ -181,7 +191,11 @@ func newReflectFn(fn any, resultType reflect.Type, deps ...any) (rf *reflectFn, 
 		offset++
 	}
 	if argCount != len(deps) {
-		return nil, wrapStackErrorf("function takes %d arguments (excluding any initial context), but %d deps were provided", argCount, len(deps))
+		return nil, wrapStackErrorf(
+			"function takes %d arguments (excluding any initial context), but %d deps were provided",
+			argCount,
+			len(deps),
+		)
 	}
 
 	var keys []*reflectKey
@@ -192,7 +206,12 @@ func newReflectFn(fn any, resultType reflect.Type, deps ...any) (rf *reflectFn, 
 			return nil, wrapStackErrorf("dependency %d: %w", i, err)
 		}
 		if !rk.valueType.AssignableTo(fnType.In(i + offset)) {
-			return nil, wrapStackErrorf("dependency %d is Key[%v]; want Key[%v]", i, rk.valueType, fnType.In(i+offset))
+			return nil, wrapStackErrorf(
+				"dependency %d is Key[%v]; want Key[%v]",
+				i,
+				rk.valueType,
+				fnType.In(i+offset),
+			)
 		}
 		keys = append(keys, rk)
 		id, err := rk.ID()
@@ -272,7 +291,11 @@ func (r Reflect[T]) Build() (Task, error) {
 			}
 			typed, ok := res.(T)
 			if !ok {
-				return nil, wrapStackErrorf("%s: could not convert function result to T; got %T", r.errorPrefix(), res)
+				return nil, wrapStackErrorf(
+					"%s: could not convert function result to T; got %T",
+					r.errorPrefix(),
+					res,
+				)
 			}
 			return []Binding{r.ResultKey.Bind(typed)}, nil
 		},
@@ -341,7 +364,11 @@ func (r ReflectMulti) Build() (Task, error) {
 			}
 			typed, ok := res.([]Binding)
 			if !ok {
-				return nil, wrapStackErrorf("%s: could not convert function result to []Binding; got %T", r.errorPrefix(), res)
+				return nil, wrapStackErrorf(
+					"%s: could not convert function result to []Binding; got %T",
+					r.errorPrefix(),
+					res,
+				)
 			}
 			return typed, nil
 		},

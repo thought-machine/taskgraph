@@ -175,7 +175,8 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 			"task %s: mismatch between task Provides declaration and returned bindings: missing bindings [%s], got extra bindings [%s]",
 			gn.task.Name(),
 			strings.Join(missing, ", "),
-			strings.Join(extra, ", "))
+			strings.Join(extra, ", "),
+		)
 	}
 
 	for _, dependent := range gn.dependents {
@@ -263,7 +264,8 @@ func (g *graph) Run(ctx context.Context, inputs ...Binding) (b Binder, err error
 		if err != nil {
 			result = "error"
 		}
-		executionLatency.WithLabelValues(g.name, result).Observe(float64(time.Since(startTime) / time.Millisecond))
+		executionLatency.WithLabelValues(g.name, result).
+			Observe(float64(time.Since(startTime) / time.Millisecond))
 	}()
 	base, err := g.buildInputBinder(inputs...)
 	if err != nil {
@@ -352,7 +354,10 @@ func (g *graph) AsTask(exposeKeys ...ID) (Task, error) {
 			}
 		}
 		if len(missing) > 0 {
-			return nil, wrapStackErrorf("exposed key(s) not bound after graph execution: %s", strings.Join(missing, ", "))
+			return nil, wrapStackErrorf(
+				"exposed key(s) not bound after graph execution: %s",
+				strings.Join(missing, ", "),
+			)
 		}
 
 		// The exposed keys are added to the external binder via the graphTaskBinder, so we don't return
@@ -371,7 +376,10 @@ func (g *graph) Graphviz(includeInputs bool) string {
 			for _, dep := range n.task.Depends() {
 				if !g.allProvided.Contains(dep) {
 					inputID := fmt.Sprintf("%s_input_%s", n.id, dep.id)
-					nodes = append(nodes, fmt.Sprintf("  %s [label=\"Input - %s\", shape=diamond];", inputID, dep))
+					nodes = append(
+						nodes,
+						fmt.Sprintf("  %s [label=\"Input - %s\", shape=diamond];", inputID, dep),
+					)
 					edges = append(edges, fmt.Sprintf("  %s -> %s;", inputID, n.id))
 				}
 			}
@@ -384,8 +392,14 @@ func (g *graph) Graphviz(includeInputs bool) string {
 		for _, dep := range n.task.Provides() {
 			if !g.allDependencies.Contains(dep) {
 				outputID := fmt.Sprintf("%s_output_%s", n.id, dep)
-				nodes = append(nodes, fmt.Sprintf("  %s [label=\"Output\", shape=diamond];", outputID))
-				edges = append(edges, fmt.Sprintf("  %s -> %s [label=\"%s\"];", n.id, outputID, dep))
+				nodes = append(
+					nodes,
+					fmt.Sprintf("  %s [label=\"Output\", shape=diamond];", outputID),
+				)
+				edges = append(
+					edges,
+					fmt.Sprintf("  %s -> %s [label=\"%s\"];", n.id, outputID, dep),
+				)
 			}
 		}
 	}
@@ -402,15 +416,17 @@ func (g *graph) Graphviz(includeInputs bool) string {
 	return buf.String()
 }
 
-type GraphOptions struct {
+type graphOptions struct {
 	tasks  []Task
 	tracer trace.Tracer
 }
 
-type GraphOption func(opts *GraphOptions) error
+// A GraphOption is used to configure a new Graph.
+type GraphOption func(opts *graphOptions) error
 
+// WithTasks sets the tasks which form the graph.
 func WithTasks(tasks ...TaskSet) GraphOption {
-	return func(opts *GraphOptions) error {
+	return func(opts *graphOptions) error {
 		opts.tasks = taskset(tasks).Tasks()
 
 		if len(opts.tasks) > taskLimit {
@@ -421,8 +437,9 @@ func WithTasks(tasks ...TaskSet) GraphOption {
 	}
 }
 
+// WithTracer sets a tracer to record graph execution.
 func WithTracer(tracer trace.Tracer) GraphOption {
-	return func(opts *GraphOptions) error {
+	return func(opts *graphOptions) error {
 		opts.tracer = tracer
 
 		return nil
@@ -433,7 +450,7 @@ func WithTracer(tracer trace.Tracer) GraphOption {
 //
 // Ideally, Graphs should be created on program startup, rather than creating them dynamically.
 func New(name string, opts ...GraphOption) (Graph, error) {
-	o := &GraphOptions{
+	o := &graphOptions{
 		tracer: noop.NewTracerProvider().Tracer("github.com/thought-machine/taskgraph"),
 	}
 
@@ -458,7 +475,10 @@ func New(name string, opts ...GraphOption) (Graph, error) {
 	var badTaskErrs error
 	for _, t := range g.tasks {
 		if t.Name() == "" || t.Location() == "" {
-			badTaskErrs = errors.Join(badTaskErrs, fmt.Errorf("tasks must have a name and location: (%s, %s)", t.Name(), t.Location()))
+			badTaskErrs = errors.Join(
+				badTaskErrs,
+				fmt.Errorf("tasks must have a name and location: (%s, %s)", t.Name(), t.Location()),
+			)
 		}
 		node := &graphNode{
 			id:              sanitizeTaskName(t.Name()),
@@ -477,7 +497,10 @@ func New(name string, opts ...GraphOption) (Graph, error) {
 
 		g.allProvided.Append(t.Provides()...)
 		for _, id := range t.Provides() {
-			provideTasks[id.String()] = append(provideTasks[id.String()], fmt.Sprintf("%s - %s", t.Name(), t.Location()))
+			provideTasks[id.String()] = append(
+				provideTasks[id.String()],
+				fmt.Sprintf("%s - %s", t.Name(), t.Location()),
+			)
 		}
 	}
 	if badTaskErrs != nil {
@@ -486,20 +509,34 @@ func New(name string, opts ...GraphOption) (Graph, error) {
 	var duplicateTaskNames []string
 	for name, locations := range taskLocations {
 		if len(locations) > 1 {
-			duplicateTaskNames = append(duplicateTaskNames, fmt.Sprintf("%s (%s)", name, strings.Join(locations, ", ")))
+			duplicateTaskNames = append(
+				duplicateTaskNames,
+				fmt.Sprintf("%s (%s)", name, strings.Join(locations, ", ")),
+			)
 		}
 	}
 	if len(duplicateTaskNames) > 0 {
-		return nil, wrapStackErrorf("%w: %s", ErrDuplicateTaskNames, strings.Join(duplicateTaskNames, ", "))
+		return nil, wrapStackErrorf(
+			"%w: %s",
+			ErrDuplicateTaskNames,
+			strings.Join(duplicateTaskNames, ", "),
+		)
 	}
 	var duplicateProvides []string
 	for id, tasks := range provideTasks {
 		if len(tasks) > 1 {
-			duplicateProvides = append(duplicateProvides, fmt.Sprintf("%s (%s)", id, strings.Join(tasks, ", ")))
+			duplicateProvides = append(
+				duplicateProvides,
+				fmt.Sprintf("%s (%s)", id, strings.Join(tasks, ", ")),
+			)
 		}
 	}
 	if len(duplicateProvides) > 0 {
-		return nil, wrapStackErrorf("%w: %s", ErrDuplicateProvidedKeys, strings.Join(duplicateProvides, ", "))
+		return nil, wrapStackErrorf(
+			"%w: %s",
+			ErrDuplicateProvidedKeys,
+			strings.Join(duplicateProvides, ", "),
+		)
 	}
 
 	for _, node := range g.nodes {
@@ -543,7 +580,11 @@ func sanitizeTaskName(name string) string {
 func checkCycle(node *graphNode, path []string) error {
 	for i := len(path) - 1; i >= 0; i-- {
 		if path[i] == node.task.Name() {
-			return wrapStackErrorf("%w: %s", ErrGraphCycle, strings.Join(append(path[i:], path[i]), " -> "))
+			return wrapStackErrorf(
+				"%w: %s",
+				ErrGraphCycle,
+				strings.Join(append(path[i:], path[i]), " -> "),
+			)
 		}
 	}
 	path = append(path, node.task.Name())
