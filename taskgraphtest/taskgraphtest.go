@@ -13,7 +13,6 @@ import (
 
 	set "github.com/deckarep/golang-set/v2"
 	"github.com/google/go-cmp/cmp"
-
 	tg "github.com/thought-machine/taskgraph"
 )
 
@@ -34,7 +33,13 @@ func TransformMaybe[T any]() cmp.Option {
 }
 
 // ExpectPresent asserts that b contains key bound to want.
-func ExpectPresent[T any](t *testing.T, b tg.Binder, key tg.ReadOnlyKey[T], want T, opts ...cmp.Option) {
+func ExpectPresent[T any](
+	t *testing.T,
+	b tg.Binder,
+	key tg.ReadOnlyKey[T],
+	want T,
+	opts ...cmp.Option,
+) {
 	t.Helper()
 
 	// Use key.Get so that this works with virtual keys like tg.Presence().
@@ -50,7 +55,13 @@ func ExpectPresent[T any](t *testing.T, b tg.Binder, key tg.ReadOnlyKey[T], want
 
 // DiffPresent asserts that b contains key bound to want, and produces a diff if the value is not
 // correct.
-func DiffPresent[T any](t *testing.T, b tg.Binder, key tg.ReadOnlyKey[T], want T, opts ...cmp.Option) {
+func DiffPresent[T any](
+	t *testing.T,
+	b tg.Binder,
+	key tg.ReadOnlyKey[T],
+	want T,
+	opts ...cmp.Option,
+) {
 	t.Helper()
 
 	// Use key.Get so that this works with virtual keys like tg.Presence().
@@ -145,7 +156,12 @@ func MatchDiff(want tg.Binding, opts ...cmp.Option) BindingMatcher {
 func MatchFunc[T any](want tg.Binding, compareFn func(got, want T) error) BindingMatcher {
 	return bindingMatcher{want.ID(), func(got tg.Binding) error {
 		if got.Status() != want.Status() {
-			err := fmt.Errorf("difference in binding %s status: got %s; want %s", want.ID(), got.Status(), want.Status())
+			err := fmt.Errorf(
+				"difference in binding %s status: got %s; want %s",
+				want.ID(),
+				got.Status(),
+				want.Status(),
+			)
 			if got.Status() == tg.Absent {
 				err = fmt.Errorf("%w - absent binding error: %w", err, got.Error())
 			}
@@ -168,7 +184,11 @@ func MatchFunc[T any](want tg.Binding, compareFn func(got, want T) error) Bindin
 			}
 		case tg.Absent:
 			if !errors.Is(got.Error(), want.Error()) {
-				return fmt.Errorf("difference in binding error: got %v; want %v", got.Error(), want.Error())
+				return fmt.Errorf(
+					"difference in binding error: got %v; want %v",
+					got.Error(),
+					want.Error(),
+				)
 			}
 		}
 		return nil

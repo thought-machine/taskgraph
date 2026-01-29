@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
 	tg "github.com/thought-machine/taskgraph"
 	tgt "github.com/thought-machine/taskgraph/taskgraphtest"
 )
@@ -172,7 +171,13 @@ func TestGraphErrors(t *testing.T) {
 		for i := 0; i <= 1000; i++ {
 			tasks = append(tasks, tg.NewTask("task", tgt.DummyTaskFunc(), nil, nil))
 		}
-		if _, err := tg.New("test_graph", tg.WithTasks(tasks...)); !errors.Is(err, tg.ErrTooManyTasks) {
+		if _, err := tg.New(
+			"test_graph",
+			tg.WithTasks(tasks...),
+		); !errors.Is(
+			err,
+			tg.ErrTooManyTasks,
+		) {
 			t.Errorf("expected error %v; got %v", tg.ErrTooManyTasks, err)
 		}
 	})

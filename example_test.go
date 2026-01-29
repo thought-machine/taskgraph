@@ -36,7 +36,9 @@ var taskIsPalindrome = tg.Reflect[bool]{
 	Depends: []any{keyInput, keyReversed},
 }.Locate()
 
-var graphIsPalindrome = tg.Must(tg.New("example_graph", tg.WithTasks(taskReverseInput, taskIsPalindrome)))
+var graphIsPalindrome = tg.Must(
+	tg.New("example_graph", tg.WithTasks(taskReverseInput, taskIsPalindrome)),
+)
 
 func Example() {
 	res, err := graphIsPalindrome.Run(context.Background(), keyInput.Bind("racecar"))

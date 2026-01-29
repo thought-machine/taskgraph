@@ -21,15 +21,20 @@ func TestTasks(t *testing.T) {
 		Tests: []tgt.Test{
 			{
 				Description: "NewTask",
-				Task: tg.NewTask("task", func(_ context.Context, b tg.Binder) ([]tg.Binding, error) {
-					val, err := key1.Get(b)
-					if err != nil {
-						return nil, err
-					}
-					return []tg.Binding{
-						key2.Bind(val + val),
-					}, nil
-				}, []tg.ID{key1.ID()}, []tg.ID{key2.ID()}),
+				Task: tg.NewTask(
+					"task",
+					func(_ context.Context, b tg.Binder) ([]tg.Binding, error) {
+						val, err := key1.Get(b)
+						if err != nil {
+							return nil, err
+						}
+						return []tg.Binding{
+							key2.Bind(val + val),
+						}, nil
+					},
+					[]tg.ID{key1.ID()},
+					[]tg.ID{key2.ID()},
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("bar"),
 				},
@@ -40,9 +45,14 @@ func TestTasks(t *testing.T) {
 			},
 			{
 				Description: "NewTask with error",
-				Task: tg.NewTask("task", func(_ context.Context, _ tg.Binder) ([]tg.Binding, error) {
-					return nil, sentinelError
-				}, []tg.ID{key1.ID()}, []tg.ID{key2.ID()}),
+				Task: tg.NewTask(
+					"task",
+					func(_ context.Context, _ tg.Binder) ([]tg.Binding, error) {
+						return nil, sentinelError
+					},
+					[]tg.ID{key1.ID()},
+					[]tg.ID{key2.ID()},
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("bar"),
 				},
@@ -71,9 +81,14 @@ func TestTasks(t *testing.T) {
 			},
 			{
 				Description: "SimpleTask",
-				Task: tg.SimpleTask("task", key2, func(_ context.Context, b tg.Binder) (string, error) {
-					return key1.Get(b)
-				}, key1.ID()),
+				Task: tg.SimpleTask(
+					"task",
+					key2,
+					func(_ context.Context, b tg.Binder) (string, error) {
+						return key1.Get(b)
+					},
+					key1.ID(),
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("bar"),
 				},
@@ -84,9 +99,14 @@ func TestTasks(t *testing.T) {
 			},
 			{
 				Description: "SimpleTask with error",
-				Task: tg.SimpleTask("task", key2, func(_ context.Context, b tg.Binder) (string, error) {
-					return "", sentinelError
-				}, key1.ID()),
+				Task: tg.SimpleTask(
+					"task",
+					key2,
+					func(_ context.Context, _ tg.Binder) (string, error) {
+						return "", sentinelError
+					},
+					key1.ID(),
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("bar"),
 				},
@@ -94,9 +114,14 @@ func TestTasks(t *testing.T) {
 			},
 			{
 				Description: "SimpleTask1",
-				Task: tg.SimpleTask1[string, string]("task", key2, func(_ context.Context, arg1 string) (string, error) {
-					return arg1 + arg1, nil
-				}, key1),
+				Task: tg.SimpleTask1[string, string](
+					"task",
+					key2,
+					func(_ context.Context, arg1 string) (string, error) {
+						return arg1 + arg1, nil
+					},
+					key1,
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("bar"),
 				},
@@ -107,9 +132,14 @@ func TestTasks(t *testing.T) {
 			},
 			{
 				Description: "SimpleTask1 with error",
-				Task: tg.SimpleTask1[string, string]("task", key2, func(_ context.Context, arg1 string) (string, error) {
-					return "", sentinelError
-				}, key1),
+				Task: tg.SimpleTask1[string, string](
+					"task",
+					key2,
+					func(_ context.Context, _ string) (string, error) {
+						return "", sentinelError
+					},
+					key1,
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("bar"),
 				},
@@ -117,9 +147,15 @@ func TestTasks(t *testing.T) {
 			},
 			{
 				Description: "SimpleTask2",
-				Task: tg.SimpleTask2[string, string, string]("task", key3, func(_ context.Context, arg1, arg2 string) (string, error) {
-					return arg1 + arg2, nil
-				}, key1, key2),
+				Task: tg.SimpleTask2[string, string, string](
+					"task",
+					key3,
+					func(_ context.Context, arg1, arg2 string) (string, error) {
+						return arg1 + arg2, nil
+					},
+					key1,
+					key2,
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("foo"),
 					key2.Bind("bar"),
@@ -131,9 +167,15 @@ func TestTasks(t *testing.T) {
 			},
 			{
 				Description: "SimpleTask2 with error",
-				Task: tg.SimpleTask2[string, string, string]("task", key3, func(_ context.Context, arg1, arg2 string) (string, error) {
-					return "", sentinelError
-				}, key1, key2),
+				Task: tg.SimpleTask2[string, string, string](
+					"task",
+					key3,
+					func(_ context.Context, _, _ string) (string, error) {
+						return "", sentinelError
+					},
+					key1,
+					key2,
+				),
 				Inputs: []tg.Binding{
 					key1.Bind("foo"),
 					key2.Bind("bar"),
@@ -144,9 +186,14 @@ func TestTasks(t *testing.T) {
 				Description: "Conditional, condition met",
 				Task: tg.Conditional{
 					NamePrefix: "cond_",
-					Wrapped: tg.SimpleTask1[string, string]("task", key2, func(_ context.Context, arg1 string) (string, error) {
-						return arg1 + arg1, nil
-					}, key1),
+					Wrapped: tg.SimpleTask1[string, string](
+						"task",
+						key2,
+						func(_ context.Context, arg1 string) (string, error) {
+							return arg1 + arg1, nil
+						},
+						key1,
+					),
 					Condition: tg.ConditionAnd{boolKey},
 				}.Locate(),
 				Inputs: []tg.Binding{
@@ -162,9 +209,14 @@ func TestTasks(t *testing.T) {
 				Description: "Conditional, condition not met",
 				Task: tg.Conditional{
 					NamePrefix: "cond_",
-					Wrapped: tg.SimpleTask1[string, string]("task", key2, func(_ context.Context, arg1 string) (string, error) {
-						return arg1 + arg1, nil
-					}, key1),
+					Wrapped: tg.SimpleTask1[string, string](
+						"task",
+						key2,
+						func(_ context.Context, arg1 string) (string, error) {
+							return arg1 + arg1, nil
+						},
+						key1,
+					),
 					Condition: tg.ConditionOr{boolKey},
 				}.Locate(),
 				Inputs: []tg.Binding{
@@ -219,7 +271,7 @@ func TestTasks(t *testing.T) {
 				Task: tgt.Must[tg.Task](t)(tg.Reflect[string]{
 					Name:      "task",
 					ResultKey: key3,
-					Fn: func(arg1, arg2 string) (string, error) {
+					Fn: func(_, _ string) (string, error) {
 						return "", sentinelError
 					},
 					Depends: []any{key1, key2},
@@ -278,7 +330,7 @@ func TestTasks(t *testing.T) {
 				Description: "ReflectMulti with error",
 				Task: tgt.Must[tg.Task](t)(tg.ReflectMulti{
 					Name: "task",
-					Fn: func(arg1 string) ([]tg.Binding, error) {
+					Fn: func(_ string) ([]tg.Binding, error) {
 						return nil, sentinelError
 					},
 					Provides: []tg.ID{key2.ID(), key3.ID()},

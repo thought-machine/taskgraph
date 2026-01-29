@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
 	tg "github.com/thought-machine/taskgraph"
 )
 
