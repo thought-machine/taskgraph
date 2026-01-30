@@ -1,6 +1,9 @@
 package taskgraph
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // TaskBuilder helps construct taskgraph Tasks with a fluent API.
 type TaskBuilder[T any] struct {
@@ -66,7 +69,7 @@ func (b *TaskBuilder[T]) WithDefaultBindings(bindings ...Binding) *TaskBuilder[T
 }
 
 // Build constructs and returns the Task.
-func (b *TaskBuilder[T]) Build() TaskSet {
+func (b *TaskBuilder[T]) Build() (TaskSet, error) {
 	reflect := Reflect[T]{
 		Name:      b.name,
 		ResultKey: b.resultKey,
@@ -74,24 +77,39 @@ func (b *TaskBuilder[T]) Build() TaskSet {
 		Fn:        b.fn,
 	}
 	reflect.location = getLocation(2)
-	var task TaskSet = reflect
+
+	// Eagerly build to validate and get the underlying task
+	task, err := reflect.Build()
+	if err != nil {
+		return nil, err
+	}
+	var ts TaskSet = task
 
 	if b.condition != nil {
 		conditional := Conditional{
-			Wrapped:   task,
+			Wrapped:   ts,
 			Condition: b.condition,
 		}
 
 		if b.defaultSet {
-			conditional.DefaultBindings = append(conditional.DefaultBindings, b.resultKey.Bind(b.defaultVal))
+			conditional.DefaultBindings = append(
+				conditional.DefaultBindings,
+				b.resultKey.Bind(b.defaultVal),
+			)
 		}
 		conditional.DefaultBindings = append(conditional.DefaultBindings, b.defaultBindings...)
 
 		conditional.location = getLocation(2)
-		task = conditional
+		ts = conditional
 	}
 
-	return task
+	return ts, nil
+}
+
+// Tasks satisfies the TaskSet interface to avoid the need to call Build(). It is equivalent to
+// calling Must(Build()).
+func (b *TaskBuilder[T]) Tasks() []Task {
+	return Must(b.Build()).Tasks()
 }
 
 // MultiTaskBuilder helps construct taskgraph Tasks that provide multiple outputs or perform side effects.
@@ -102,6 +120,7 @@ type MultiTaskBuilder struct {
 	provides        []ID
 	condition       Condition
 	defaultBindings []Binding
+	errors          []error
 }
 
 // NewMultiTaskBuilder creates a new builder for a multi-output or side-effect task.
@@ -122,11 +141,13 @@ func (b *MultiTaskBuilder) Provides(keys ...any) *MultiTaskBuilder {
 	for _, k := range keys {
 		rk, err := newReflectKey(k)
 		if err != nil {
-			panic(fmt.Errorf("invalid key passed to Provides: %w", err))
+			b.errors = append(b.errors, fmt.Errorf("invalid key passed to Provides: %w", err))
+			continue
 		}
 		id, err := rk.ID()
 		if err != nil {
-			panic(fmt.Errorf("invalid key ID in Provides: %w", err))
+			b.errors = append(b.errors, fmt.Errorf("invalid key ID in Provides: %w", err))
+			continue
 		}
 		b.provides = append(b.provides, id)
 	}
@@ -165,7 +186,11 @@ func (b *MultiTaskBuilder) WithDefaultBindings(bindings ...Binding) *MultiTaskBu
 }
 
 // Build constructs and returns the Task.
-func (b *MultiTaskBuilder) Build() TaskSet {
+func (b *MultiTaskBuilder) Build() (TaskSet, error) {
+	if len(b.errors) > 0 {
+		return nil, errors.Join(b.errors...)
+	}
+
 	reflect := ReflectMulti{
 		Name:     b.name,
 		Depends:  b.depends,
@@ -185,5 +210,11 @@ func (b *MultiTaskBuilder) Build() TaskSet {
 		task = conditional
 	}
 
-	return task
+	return task, nil
+}
+
+// Tasks satisfies the TaskSet interface to avoid the need to call Build(). It is equivalent to
+// calling Must(Build()).
+func (b *MultiTaskBuilder) Tasks() []Task {
+	return Must(b.Build()).Tasks()
 }
