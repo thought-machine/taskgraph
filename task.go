@@ -91,7 +91,7 @@ func NewTask(
 		depends:  depends,
 		provides: provides,
 		fn:       fn,
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }
 
@@ -103,7 +103,7 @@ func NoOutputTask(name string, fn func(ctx context.Context, b Binder) error, dep
 		fn: func(ctx context.Context, b Binder) ([]Binding, error) {
 			return nil, fn(ctx, b)
 		},
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }
 
@@ -125,7 +125,7 @@ func SimpleTask[T any](
 			}
 			return []Binding{key.Bind(val)}, nil
 		},
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }
 
@@ -151,7 +151,7 @@ func SimpleTask1[A1, Res any](
 			}
 			return []Binding{resKey.Bind(res)}, nil
 		},
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }
 
@@ -182,7 +182,7 @@ func SimpleTask2[A1, A2, Res any](
 			}
 			return []Binding{resKey.Bind(res)}, nil
 		},
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }
 
@@ -266,7 +266,7 @@ type Conditional struct {
 // Locate annotates the Conditional with its location in the source code, to make error messages
 // easier to understand. Calling it is required.
 func (c Conditional) Locate() Conditional {
-	c.location = getLocation()
+	c.location = getLocation(2)
 	return c
 }
 
@@ -321,6 +321,6 @@ func AllBound(name string, result Key[bool], deps ...ID) Task {
 		fn: func(_ context.Context, _ Binder) ([]Binding, error) {
 			return []Binding{result.Bind(true)}, nil
 		},
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }

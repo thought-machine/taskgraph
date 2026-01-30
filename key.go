@@ -100,7 +100,7 @@ func (k *key[T]) Get(b Binder) (T, error) {
 func NewKey[T any](id string) Key[T] {
 	return &key[T]{
 		id:       newID("", id),
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }
 
@@ -109,7 +109,7 @@ func NewKey[T any](id string) Key[T] {
 func NewNamespacedKey[T any](namespace, id string) Key[T] {
 	return &key[T]{
 		id:       newID(namespace, id),
-		location: getLocation(),
+		location: getLocation(2),
 	}
 }
 
@@ -130,7 +130,7 @@ func (k *presenceKey[T]) Get(b Binder) (bool, error) {
 func Presence[T any](key ReadOnlyKey[T]) ReadOnlyKey[bool] {
 	return &presenceKey[T]{
 		ReadOnlyKey: key,
-		location:    getLocation(),
+		location:    getLocation(2),
 	}
 }
 
@@ -159,7 +159,7 @@ func Mapped[In, Out any](key ReadOnlyKey[In], fn func(In) Out) ReadOnlyKey[Out] 
 	return &mappedKey[In, Out]{
 		ReadOnlyKey: key,
 		fn:          fn,
-		location:    getLocation(),
+		location:    getLocation(2),
 	}
 }
 
@@ -188,6 +188,6 @@ func (k *optionalKey[T]) Get(b Binder) (Maybe[T], error) {
 func Optional[T any](base ReadOnlyKey[T]) ReadOnlyKey[Maybe[T]] {
 	return &optionalKey[T]{
 		ReadOnlyKey: base,
-		location:    getLocation(),
+		location:    getLocation(2),
 	}
 }

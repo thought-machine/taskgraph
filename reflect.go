@@ -258,7 +258,7 @@ type Reflect[T any] struct {
 // Locate annotates the Reflect with its location in the source code, to make error messages
 // easier to understand. Calling it is recommended but not required if wrapped in a Conditional
 func (r Reflect[T]) Locate() Reflect[T] {
-	r.location = getLocation()
+	r.location = getLocation(2)
 	return r
 }
 
@@ -337,7 +337,7 @@ type ReflectMulti struct {
 // Locate annotates the ReflectMulti with its location in the source code, to make error messages
 // easier to understand. Calling it is recommended but not required if wrapped in a Conditional
 func (r ReflectMulti) Locate() ReflectMulti {
-	r.location = getLocation()
+	r.location = getLocation(2)
 	return r
 }
 
