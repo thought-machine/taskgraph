@@ -107,7 +107,7 @@ func (b *TaskBuilder[T]) Build() (TaskSet, error) {
 }
 
 // Tasks satisfies the TaskSet interface to avoid the need to call Build(). It is equivalent to
-// calling Must(Build()).
+// calling Must(Build()).Tasks().
 func (b *TaskBuilder[T]) Tasks() []Task {
 	return Must(b.Build()).Tasks()
 }
@@ -214,7 +214,7 @@ func (b *MultiTaskBuilder) Build() (TaskSet, error) {
 }
 
 // Tasks satisfies the TaskSet interface to avoid the need to call Build(). It is equivalent to
-// calling Must(Build()).
+// calling Must(Build()).Tasks().
 func (b *MultiTaskBuilder) Tasks() []Task {
 	return Must(b.Build()).Tasks()
 }
