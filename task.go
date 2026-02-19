@@ -310,13 +310,22 @@ func (c Conditional) Tasks() []Task {
 					return nil, err
 				}
 				span := trace.SpanFromContext(ctx)
-				span.SetAttributes(attribute.Bool(traceTaskgraphConditionalPrefix+"execute", shouldExecute))
+				span.SetAttributes(
+					attribute.Bool(traceTaskgraphConditionalPrefix+"execute", shouldExecute),
+				)
 				for _, k := range c.Condition.Keys() {
 					v, err := k.Get(b)
 					if err != nil {
-						span.SetAttributes(attribute.String(traceTaskgraphConditionalPrefix+k.ID().String(), err.Error()))
+						span.SetAttributes(
+							attribute.String(
+								traceTaskgraphConditionalPrefix+k.ID().String(),
+								err.Error(),
+							),
+						)
 					} else {
-						span.SetAttributes(attribute.Bool(traceTaskgraphConditionalPrefix+k.ID().String(), v))
+						span.SetAttributes(
+							attribute.Bool(traceTaskgraphConditionalPrefix+k.ID().String(), v),
+						)
 					}
 				}
 				if shouldExecute {
