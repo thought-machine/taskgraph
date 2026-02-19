@@ -4,6 +4,8 @@ import (
 	"context"
 
 	set "github.com/deckarep/golang-set/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // A TaskSet defines a nestable collection of tasks. A Task fulfils the TaskSet interface, acting as
@@ -192,6 +194,8 @@ type Condition interface {
 	Evaluate(ctx context.Context, b Binder) (bool, error)
 	// Deps should return the IDs of the keys used by the Evaluate function.
 	Deps() []ID
+	// Keys returns the keys in the conditional
+	Keys() []ReadOnlyKey[bool]
 }
 
 // ConditionAnd evaluates to true if and only if all of the keys it contains are bound to true.
@@ -220,6 +224,11 @@ func (ca ConditionAnd) Deps() []ID {
 	return deps
 }
 
+// Keys returns the keys in the conditional
+func (ca ConditionAnd) Keys() []ReadOnlyKey[bool] {
+	return ca
+}
+
 // ConditionOr evaluates to true if any of the keys it contains are bound to true.
 type ConditionOr []ReadOnlyKey[bool]
 
@@ -246,6 +255,11 @@ func (co ConditionOr) Deps() []ID {
 	return deps
 }
 
+// Keys returns the keys in the conditional
+func (co ConditionOr) Keys() []ReadOnlyKey[bool] {
+	return co
+}
+
 // Conditional wraps tasks such that they are only run if given Condition evaluates to true. If it
 // evaluates to false, the bindings in DefaultBindings are used, with any missing keys provided by
 // the wrapped tasks bound as absent.
@@ -270,6 +284,10 @@ func (c Conditional) Locate() Conditional {
 	return c
 }
 
+const (
+	traceTaskgraphConditionalPrefix = "taskgraph.conditional."
+)
+
 // Tasks satisfies TaskSet.Tasks.
 func (c Conditional) Tasks() []Task {
 	defaultBindingsMap := map[ID]Binding{}
@@ -290,6 +308,16 @@ func (c Conditional) Tasks() []Task {
 				shouldExecute, err := c.Condition.Evaluate(ctx, b)
 				if err != nil {
 					return nil, err
+				}
+				span := trace.SpanFromContext(ctx)
+				span.SetAttributes(attribute.Bool(traceTaskgraphConditionalPrefix+"execute", shouldExecute))
+				for _, k := range c.Condition.Keys() {
+					v, err := k.Get(b)
+					if err != nil {
+						span.SetAttributes(attribute.String(traceTaskgraphConditionalPrefix+k.ID().String(), err.Error()))
+					} else {
+						span.SetAttributes(attribute.Bool(traceTaskgraphConditionalPrefix+k.ID().String(), v))
+					}
 				}
 				if shouldExecute {
 					return t.Execute(ctx, b)

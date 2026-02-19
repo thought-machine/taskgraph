@@ -169,6 +169,9 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 		if !providesSet.Contains(binding.ID()) {
 			extra = append(extra, binding.ID().String())
 		}
+		if binding.Status() == Absent {
+			span.RecordError(binding.Error())
+		}
 	}
 	if len(extra) > 0 || len(missing) > 0 {
 		return wrapStackErrorf(
