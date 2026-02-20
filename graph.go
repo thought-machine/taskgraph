@@ -175,7 +175,12 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 			extra = append(extra, binding.ID().String())
 		}
 		if binding.Status() == Absent {
-			span.SetAttributes(attribute.String(traceTaskgraphAbsentKeysPrefix+binding.ID().String(), fmt.Sprintf("%v", binding.Error())))
+			span.SetAttributes(
+				attribute.String(
+					traceTaskgraphAbsentKeysPrefix+binding.ID().String(),
+					fmt.Sprintf("%v", binding.Error()),
+				),
+			)
 		}
 	}
 	if len(extra) > 0 || len(missing) > 0 {
