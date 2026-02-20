@@ -202,7 +202,11 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 	}
 
 	if len(errors) > 0 {
-		gn.logger.Debugf("task %s has binding errors: %s", gn.task.Name(), strings.Join(errors, ", "))
+		gn.logger.Debugf(
+			"task %s has binding errors: %s",
+			gn.task.Name(),
+			strings.Join(errors, ", "),
+		)
 	}
 
 	for _, dependent := range gn.dependents {
@@ -443,6 +447,7 @@ func (g *graph) Graphviz(includeInputs bool) string {
 	return buf.String()
 }
 
+// Logger logger interface for the graph.
 type Logger interface {
 	Debugf(format string, args ...interface{})
 }
@@ -478,6 +483,7 @@ func WithTracer(tracer trace.Tracer) GraphOption {
 	}
 }
 
+// WithLogger sets a logger for the graph.
 func WithLogger(logger Logger) GraphOption {
 	return func(opts *graphOptions) error {
 		opts.logger = logger
