@@ -12,6 +12,7 @@ import (
 	"time"
 
 	set "github.com/deckarep/golang-set/v2"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/sync/errgroup"
@@ -123,6 +124,10 @@ type graphNode struct {
 	tracer          trace.Tracer
 }
 
+const (
+	traceTaskgraphAbsentKeysPrefix = "taskgraph.absent_keys."
+)
+
 // Execute the task against the binder provided in the runState.
 //
 // This assumes that all of the task's dependencies have been bound; it is the responsibility of the
@@ -168,6 +173,14 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 	for _, binding := range bindings {
 		if !providesSet.Contains(binding.ID()) {
 			extra = append(extra, binding.ID().String())
+		}
+		if binding.Status() == Absent {
+			span.SetAttributes(
+				attribute.String(
+					traceTaskgraphAbsentKeysPrefix+binding.ID().String(),
+					fmt.Sprintf("%v", binding.Error()),
+				),
+			)
 		}
 	}
 	if len(extra) > 0 || len(missing) > 0 {
