@@ -122,6 +122,7 @@ type graphNode struct {
 	dependents      []*graphNode
 	dependentsByKey map[ID][]*graphNode
 	tracer          trace.Tracer
+	logger          Logger
 }
 
 const (
@@ -150,8 +151,8 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 	tCtx, span := gn.tracer.Start(ctx, gn.task.Name())
 	defer span.End()
 
-	log.Debugf("Starting task %s", gn.task.Name())
-	defer log.Debugf("Finished task %s", gn.task.Name())
+	gn.logger.Debugf("Starting task %s", gn.task.Name())
+	defer gn.logger.Debugf("Finished task %s", gn.task.Name())
 
 	bindings, err := gn.task.Execute(tCtx, rs)
 	if err != nil {
@@ -169,20 +170,28 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 		}
 	}
 	var extra []string
+	errors := []string{}
 	providesSet := set.NewSet[ID](gn.task.Provides()...)
 	for _, binding := range bindings {
 		if !providesSet.Contains(binding.ID()) {
 			extra = append(extra, binding.ID().String())
 		}
+
 		if binding.Status() == Absent {
+			err := binding.Error()
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("[%s: %s]", binding.ID().String(), err))
+			}
+
 			span.SetAttributes(
 				attribute.String(
 					traceTaskgraphAbsentKeysPrefix+binding.ID().String(),
-					fmt.Sprintf("%v", binding.Error()),
+					fmt.Sprintf("%v", err),
 				),
 			)
 		}
 	}
+
 	if len(extra) > 0 || len(missing) > 0 {
 		return wrapStackErrorf(
 			"task %s: mismatch between task Provides declaration and returned bindings: missing bindings [%s], got extra bindings [%s]",
@@ -192,8 +201,12 @@ func (gn *graphNode) execute(ctx context.Context, rs *runState) (err error) {
 		)
 	}
 
+	if len(errors) > 0 {
+		gn.logger.Debugf("task %s has binding errors: %s", gn.task.Name(), strings.Join(errors, ", "))
+	}
+
 	for _, dependent := range gn.dependents {
-		log.Debugf("task %s signalling dependent %s\n", gn.task.Name(), dependent.task.Name())
+		gn.logger.Debugf("task %s signalling dependent %s\n", gn.task.Name(), dependent.task.Name())
 		if err := rs.signal(tCtx, dependent.id); err != nil {
 			return err
 		}
@@ -212,10 +225,10 @@ func (gn *graphNode) canExecute(b Binder) bool {
 func (gn *graphNode) runFunc(ctx context.Context, rs *runState) func() error {
 	return func() error {
 		if gn.canExecute(rs) {
-			log.Debugf("task %s starting immediately\n", gn.task.Name())
+			gn.logger.Debugf("task %s starting immediately\n", gn.task.Name())
 			return gn.execute(ctx, rs)
 		}
-		log.Debugf("task %s has dependencies missing; cannot start immediately\n", gn.task.Name())
+		gn.logger.Debugf("task %s has dependencies missing; cannot start immediately\n", gn.task.Name())
 		signal, ok := rs.signals[gn.id]
 		if !ok {
 			return wrapStackErrorf("signal channel missing for id %q", gn.id)
@@ -224,10 +237,10 @@ func (gn *graphNode) runFunc(ctx context.Context, rs *runState) func() error {
 			select {
 			case <-signal:
 				if gn.canExecute(rs) {
-					log.Debugf("task %s starting\n", gn.task.Name())
+					gn.logger.Debugf("task %s starting\n", gn.task.Name())
 					return gn.execute(ctx, rs)
 				}
-				log.Debugf("task %s still has dependencies missing\n", gn.task.Name())
+				gn.logger.Debugf("task %s still has dependencies missing\n", gn.task.Name())
 			case <-ctx.Done():
 				return nil
 			}
@@ -241,6 +254,7 @@ type graph struct {
 	allDependencies, allProvided set.Set[ID]
 	nodes                        []*graphNode
 	tracer                       trace.Tracer
+	logger                       Logger
 }
 
 func (g *graph) buildInputBinder(inputs ...Binding) (Binder, error) {
@@ -429,9 +443,14 @@ func (g *graph) Graphviz(includeInputs bool) string {
 	return buf.String()
 }
 
+type Logger interface {
+	Debugf(format string, args ...interface{})
+}
+
 type graphOptions struct {
 	tasks  []Task
 	tracer trace.Tracer
+	logger Logger
 }
 
 // A GraphOption is used to configure a new Graph.
@@ -459,6 +478,14 @@ func WithTracer(tracer trace.Tracer) GraphOption {
 	}
 }
 
+func WithLogger(logger Logger) GraphOption {
+	return func(opts *graphOptions) error {
+		opts.logger = logger
+
+		return nil
+	}
+}
+
 // New creates a new Graph. Exactly one WithTasks option should be passed.
 //
 // Ideally, Graphs should be created on program startup, rather than creating them dynamically.
@@ -473,12 +500,17 @@ func New(name string, opts ...GraphOption) (Graph, error) {
 		}
 	}
 
+	if o.logger == nil {
+		o.logger = log
+	}
+
 	g := &graph{
 		name:            name,
 		tasks:           o.tasks,
 		allDependencies: set.NewSet[ID](),
 		allProvided:     set.NewSet[ID](),
 		tracer:          o.tracer,
+		logger:          o.logger,
 	}
 
 	provideTasks := map[string][]string{}
@@ -498,6 +530,7 @@ func New(name string, opts ...GraphOption) (Graph, error) {
 			task:            t,
 			dependentsByKey: map[ID][]*graphNode{},
 			tracer:          g.tracer,
+			logger:          g.logger,
 		}
 		g.nodes = append(g.nodes, node)
 
