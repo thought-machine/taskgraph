@@ -232,7 +232,8 @@ func (gn *graphNode) runFunc(ctx context.Context, rs *runState) func() error {
 			gn.logger.Debugf("task %s starting immediately\n", gn.task.Name())
 			return gn.execute(ctx, rs)
 		}
-		gn.logger.Debugf("task %s has dependencies missing; cannot start immediately\n", gn.task.Name())
+		gn.logger.Debugf("task %s has dependencies missing; cannot start immediately\n",
+			gn.task.Name())
 		signal, ok := rs.signals[gn.id]
 		if !ok {
 			return wrapStackErrorf("signal channel missing for id %q", gn.id)
