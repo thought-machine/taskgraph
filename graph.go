@@ -90,9 +90,16 @@ type Graph interface {
 type runState struct {
 	Binder
 	signals map[string]chan struct{}
+	// skipped holds the IDs of the nodes which are not run because their tasks are overridden. They
+	// have nothing listening for signals, and nothing which depends on them waits for them.
+	skipped map[string]struct{}
 }
 
 func (rs *runState) signal(ctx context.Context, childID string) (err error) {
+	if _, skipped := rs.skipped[childID]; skipped {
+		return nil
+	}
+
 	// Capture (and ignore) panics caused by sends to closed channels, which may occur if a task
 	// starts slowly and sees that all of its dependencies are available before we can signal it.
 	defer func() {
@@ -127,6 +134,8 @@ type graphNode struct {
 
 const (
 	traceTaskgraphAbsentKeysPrefix = "taskgraph.absent_keys."
+	traceTaskgraphOverriddenKeys   = "taskgraph.overridden_keys"
+	traceTaskgraphSkippedTasks     = "taskgraph.skipped_tasks"
 )
 
 // Execute the task against the binder provided in the runState.
@@ -262,34 +271,24 @@ type graph struct {
 	logger                       Logger
 }
 
-func (g *graph) buildInputBinder(inputs ...Binding) (Binder, error) {
-	b := NewBinder()
-
-	if err := b.Store(inputs...); err != nil {
-		return nil, wrapStackErrorf("duplicate input: %w", err)
-	}
-
-	var missingInputs []string
-	for requiredInput := range g.allDependencies.Difference(g.allProvided).Iter() {
-		if !b.Has(requiredInput) {
-			missingInputs = append(missingInputs, requiredInput.String())
-		}
-	}
-	if len(missingInputs) > 0 {
-		return nil, wrapStackErrorf("%w: %s", ErrMissingInputs, strings.Join(missingInputs, ", "))
-	}
-
-	return b, nil
-}
-
 // Check is Graph.Check.
 func (g *graph) Check(inputs ...Binding) error {
-	_, err := g.buildInputBinder(inputs...)
+	_, err := g.buildInputs(inputs, nil, false)
 	return err
 }
 
 // Run is Graph.Run.
-func (g *graph) Run(ctx context.Context, inputs ...Binding) (b Binder, err error) {
+func (g *graph) Run(ctx context.Context, inputs ...Binding) (Binder, error) {
+	return g.runWithOverrides(ctx, inputs, nil, false)
+}
+
+// runWithOverrides runs the graph with some of its tasks replaced by the overrides, which are for
+// tests (see taskgraphtest).
+func (g *graph) runWithOverrides(
+	ctx context.Context,
+	inputs, overrides []Binding,
+	ignoreUnprovided bool,
+) (b Binder, err error) {
 	startTime := time.Now()
 	defer func() {
 		result := "success"
@@ -299,20 +298,33 @@ func (g *graph) Run(ctx context.Context, inputs ...Binding) (b Binder, err error
 		executionLatency.WithLabelValues(g.name, result).
 			Observe(float64(time.Since(startTime) / time.Millisecond))
 	}()
-	base, err := g.buildInputBinder(inputs...)
+	in, err := g.buildInputs(inputs, overrides, ignoreUnprovided)
 	if err != nil {
 		return nil, err
 	}
 
+	// Overrides stand in for the results of the tasks they replace, so they are stored with the
+	// results, and are returned along with them.
 	outputs := NewBinder()
+	if err := outputs.Store(in.overrides...); err != nil {
+		return nil, wrapStackErrorf("storing overrides: %w", err)
+	}
 	overlay := &overlayBinder{
-		base:    base,
+		base:    in.inputs,
 		overlay: outputs,
 	}
 
 	tCtx, span := g.tracer.Start(ctx, g.name)
 	defer span.End()
-	if err := g.runWithBinder(tCtx, overlay); err != nil {
+	if len(in.overrides) > 0 {
+		span.SetAttributes(
+			attribute.StringSlice(traceTaskgraphOverriddenKeys, in.overriddenKeys()),
+			attribute.StringSlice(traceTaskgraphSkippedTasks, in.skippedTaskNames()),
+		)
+		g.logger.Debugf("graph %s overriding keys %v, so not running tasks %v",
+			g.name, in.overriddenKeys(), in.skippedTaskNames())
+	}
+	if err := g.runWithBinder(tCtx, overlay, in.skipped); err != nil {
 		span.RecordError(err)
 		return nil, err
 	}
@@ -322,13 +334,21 @@ func (g *graph) Run(ctx context.Context, inputs ...Binding) (b Binder, err error
 
 // Sets up the per-run state of the graph, and runs all of the tasks in their own goroutines until
 // all have terminated. If any task returns an error, the entire graph run is cancelled.
-func (g *graph) runWithBinder(ctx context.Context, binder Binder) error {
+func (g *graph) runWithBinder(
+	ctx context.Context,
+	binder Binder,
+	skipped map[*graphNode]struct{},
+) error {
 	rs := &runState{
 		Binder:  binder,
 		signals: map[string]chan struct{}{},
+		skipped: map[string]struct{}{},
 	}
 	for _, gn := range g.nodes {
 		rs.signals[gn.id] = make(chan struct{})
+	}
+	for gn := range skipped {
+		rs.skipped[gn.id] = struct{}{}
 	}
 
 	// errgroup always cancels the derived context before returning from Wait(), so the select below
@@ -336,6 +356,9 @@ func (g *graph) runWithBinder(ctx context.Context, binder Binder) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	for _, gn := range g.nodes {
+		if _, isSkipped := skipped[gn]; isSkipped {
+			continue
+		}
 		eg.Go(gn.runFunc(egCtx, rs))
 	}
 
@@ -371,7 +394,8 @@ func (g *graph) AsTask(exposeKeys ...ID) (Task, error) {
 			exposeKeys: exposeSet,
 		}
 
-		if err := g.runWithBinder(ctx, gtb); err != nil {
+		// Overrides apply only to the graph they are given to, not to any graphs it runs as tasks.
+		if err := g.runWithBinder(ctx, gtb, nil); err != nil {
 			return nil, err
 		}
 
