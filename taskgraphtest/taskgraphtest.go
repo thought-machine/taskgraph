@@ -263,6 +263,14 @@ type Test struct {
 	// Inputs defines the inputs passed to the graph for the test.
 	Inputs []tg.Binding
 
+	// Overrides defines bindings which replace the tasks providing their keys, as with
+	// RunWithOverrides; the replaced tasks are not run. Overrides given by the Suite
+	// are applied as well, those given here replacing them for the same key.
+	//
+	// The overrides are part of the result, as the replaced tasks' results would have been, so
+	// CheckExcessBindings counts them among the bindings to be wanted.
+	Overrides []tg.Binding
+
 	// WantError defines the expected error returned from the Graph's execution (note that the test
 	// will always fail if Graph setup/configuration fails). Compared using errors.Is.
 	WantError error
@@ -314,7 +322,7 @@ func (test Test) Run(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), test.Timeout)
 	defer cancel()
 
-	result, err := test.Graph.Run(ctx, test.Inputs...)
+	result, err := RunWithOverrides(ctx, test.Graph, test.Inputs, test.Overrides)
 
 	if !errors.Is(err, test.WantError) {
 		t.Fatalf("Difference in error from Graph.Run(): got %v; want %v", err, test.WantError)
@@ -354,6 +362,11 @@ type Suite struct {
 	// the set is expected to contain a single element.
 	Task tg.TaskSet
 
+	// Overrides defines bindings which replace the tasks providing their keys in every test of the
+	// suite (see Test.Overrides). A test which overrides the same key itself uses its own binding in
+	// place of the suite's.
+	Overrides []tg.Binding
+
 	// Tests defines the individual tests to be run.
 	Tests []Test
 
@@ -382,8 +395,28 @@ func (s Suite) Run(t *testing.T) {
 		if test.Timeout <= 0 {
 			test.Timeout = s.Timeout
 		}
+		test.Overrides = mergeOverrides(s.Overrides, test.Overrides)
 		t.Run(test.Description, test.Run)
 	}
+}
+
+// mergeOverrides returns the overrides of a suite and of one of its tests together, those of the test
+// replacing those of the suite which are for the same key.
+func mergeOverrides(suite, test []tg.Binding) []tg.Binding {
+	if len(suite) == 0 {
+		return test
+	}
+	overridden := set.NewSet[tg.ID]()
+	for _, b := range test {
+		overridden.Add(b.ID())
+	}
+	merged := append([]tg.Binding{}, test...)
+	for _, b := range suite {
+		if !overridden.Contains(b.ID()) {
+			merged = append(merged, b)
+		}
+	}
+	return merged
 }
 
 // DummyTaskFunc returns a function suitable for passing to taskgraph.NewTask which returns the

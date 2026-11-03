@@ -27,6 +27,49 @@ result, execution of the graph is performed as a parallelised breadth first sear
 This package contains some creative APIs which work around limitations in Golang generics; chief
 of these is the `ID` type used in place of slices of keys because Golang slices are invariant.
 
+## Overriding tasks in tests
+
+A graph's tasks often create things for themselves: clients of other services, say. That makes a
+whole graph hard to test, as there is no way to give it a fake client. `taskgraphtest` can replace
+the task which provides a key:
+
+```go
+taskgraphtest.RunWithOverrides(ctx, graph, inputs, []tg.Binding{keyClient.Bind(fakeClient)})
+```
+
+The task providing `keyClient` is not run, and the tasks which depend on it see the fake. This makes
+a graph's dependencies a matter of which keys its tasks provide: anything which a test may want to
+replace should be a key of its own.
+
+Replacing tasks is only available from `taskgraphtest`. `Graph.Run` has no way to do it, and the
+engine's support is in an `internal` package, which nothing outside this module can import. Code which
+runs a graph and needs to be tested can take a function for running graphs, and be handed
+`Overrider.Run` by its tests.
+
+* An input for a key which a task provides is still an error, so a key is only ever replaced on
+  purpose. The same goes for overriding one key twice, or overriding a key which is also an input.
+* If a task provides several keys they must all be overridden, or none (`ErrPartialOverride`).
+  Otherwise the task would still have to run, with all of its effects, with some of its results
+  thrown away.
+* Overriding a key which no task provides is an error (`ErrUnknownOverride`), which catches
+  overrides left behind by a task which has since been renamed or removed. `CheckWithOverrides`
+  finds these without running the graph.
+* The override may be absent: `keyClient.BindError(err)` replaces the task with a failure, to see how
+  the tasks which depend on it cope.
+* The overrides are included in the `Binder` returned, as the results of the tasks they replace would
+  have been.
+* Inputs which only a replaced task needed are not required.
+* Tasks which only produced inputs for a replaced task still run, as the graph can't know that its
+  caller doesn't want their results.
+* Overrides apply to the graph they are given. A graph run as a task with `AsTask` is replaced as a
+  whole, by overriding every key it exposes, but its tasks can't be overridden individually.
+* An `Overrider` holds one set of overrides for something which runs several graphs, such as an
+  operator with a graph to create and a graph to delete. Each graph is run with the overrides for the
+  keys it provides, and `Overrider.Check` makes sure that every override is for some graph.
+
+`taskgraphtest.Test` and `taskgraphtest.Suite` take `Overrides`, those of a `Test` replacing those
+of its `Suite` for the same key.
+
 ## Limitations and sharp edges
 
 * Taskgraph has no deadlock detection. In theory the fact that the graph is acyclic should prevent
