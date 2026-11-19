@@ -160,3 +160,90 @@ func TestTestWithoutOverridesUsesGraphRun(t *testing.T) {
 		WantBindings: []tgt.BindingMatcher{tgt.Match(key.Bind(1))},
 	}.Run(t)
 }
+
+func TestOverriderCheck(t *testing.T) {
+	keyIn, keyA := tg.NewKey[int]("in"), tg.NewKey[int]("a")
+	keyM1, keyM2 := tg.NewKey[int]("m1"), tg.NewKey[int]("m2")
+	create := tgt.Must[tg.Graph](t)(tg.New("create", tg.WithTasks(
+		tg.SimpleTask1[int, int](
+			"A",
+			keyA,
+			func(_ context.Context, in int) (int, error) { return in, nil },
+			keyIn,
+		),
+	)))
+	// A task which provides two keys, as one which has had a key added to it does.
+	del := tgt.Must[tg.Graph](t)(tg.New("delete", tg.WithTasks(
+		tg.NewTask("M", func(context.Context, tg.Binder) ([]tg.Binding, error) {
+			return []tg.Binding{keyM1.Bind(1), keyM2.Bind(2)}, nil
+		}, nil, []tg.ID{keyM1.ID(), keyM2.ID()}),
+	)))
+
+	for _, tc := range []struct {
+		description string
+		overrider   *tg.Overrider
+		graphs      []tg.Graph
+		wantError   error
+		// wantSomeError is for errors which have no sentinel.
+		wantSomeError bool
+	}{
+		{
+			description: "every key of a task, in the graph which has it",
+			overrider:   tg.NewOverrider(keyA.Bind(1), keyM1.Bind(1), keyM2.Bind(2)),
+			graphs:      []tg.Graph{create, del},
+		},
+		{
+			description: "only some of the keys of a task, in a graph which no test might run",
+			overrider:   tg.NewOverrider(keyA.Bind(1), keyM1.Bind(1)),
+			graphs:      []tg.Graph{create, del},
+			wantError:   tg.ErrPartialOverride,
+		},
+		{
+			description: "the same key twice",
+			overrider:   tg.NewOverrider(keyA.Bind(1), keyA.Bind(2)),
+			graphs:      []tg.Graph{create, del},
+			wantError:   tg.ErrDuplicateBinding,
+		},
+		{
+			// Which is found before the key is found to be one which no graph has.
+			description: "the same key twice, which no graph provides",
+			overrider:   tg.NewOverrider(tg.NewKey[int]("stale").Bind(1), tg.NewKey[int]("stale").Bind(2)),
+			graphs:      []tg.Graph{create, del},
+			wantError:   tg.ErrDuplicateBinding,
+		},
+		{
+			description: "a key which no graph provides",
+			overrider:   tg.NewOverrider(keyA.Bind(1), tg.NewKey[int]("stale").Bind(1)),
+			graphs:      []tg.Graph{create, del},
+			wantError:   tg.ErrUnknownOverride,
+		},
+		{
+			description:   "a graph which taskgraph.New didn't make",
+			overrider:     tg.NewOverrider(keyA.Bind(1)),
+			graphs:        []tg.Graph{create, fakeGraph{}},
+			wantSomeError: true,
+		},
+		{
+			description:   "a graph which taskgraph.New didn't make, with nothing to override",
+			overrider:     tg.NewOverrider(),
+			graphs:        []tg.Graph{fakeGraph{}},
+			wantSomeError: true,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			err := tc.overrider.Check(tc.graphs...)
+			switch {
+			case tc.wantSomeError:
+				if err == nil {
+					t.Fatal("Check(): got nil; want an error")
+				}
+				// It is the graph which is wrong, not an override which is for no graph.
+				if errors.Is(err, tg.ErrUnknownOverride) {
+					t.Errorf("Check(): got %v; want an error about the graph", err)
+				}
+			case !errors.Is(err, tc.wantError):
+				t.Errorf("Check(): got %v; want %v", err, tc.wantError)
+			}
+		})
+	}
+}

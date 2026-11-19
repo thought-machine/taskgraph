@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	set "github.com/deckarep/golang-set/v2"
 )
 
 var (
@@ -101,23 +103,57 @@ func (o *Overrider) Run(ctx context.Context, g Graph, inputs ...Binding) (Binder
 	if err != nil {
 		return nil, err
 	}
+	return RunWithOverrides(ctx, g, inputs, o.overridesFor(graph))
+}
+
+// overridesFor returns those of the Overrider's overrides which are for keys the graph provides.
+func (o *Overrider) overridesFor(g *graph) []Binding {
 	var own []Binding
 	for _, override := range o.overrides {
-		if graph.allProvided.Contains(override.ID()) {
+		if g.allProvided.Contains(override.ID()) {
 			own = append(own, override)
 		}
 	}
-	return RunWithOverrides(ctx, g, inputs, own)
+	return own
 }
 
-// Check returns an error if any of the overrides is for a key which none of the graphs provide, which
-// is nearly always one left behind by a task which has been renamed or removed.
+// Check finds what is wrong with the overrides without running anything, for the graphs which they
+// will be used with together, such as the graphs to create and to delete. It returns an error if:
+//
+//   - a key is overridden twice (ErrDuplicateBinding);
+//   - a graph is not one made by New;
+//   - an override is for a key which none of the graphs provide (ErrUnknownOverride), which is nearly
+//     always one left behind by a task which has been renamed or removed;
+//   - the overrides for a graph cover only some of the keys which one of its tasks provides
+//     (ErrPartialOverride), as when a key is added to a task which was fully overridden. Run only finds
+//     this for a graph it is run with, so a test which doesn't run every graph would miss it.
 func (o *Overrider) Check(graphs ...Graph) error {
+	seen := set.NewSet[ID]()
+	for _, override := range o.overrides {
+		if seen.Contains(override.ID()) {
+			return wrapStackErrorf(
+				"key overridden twice: %w: %q",
+				ErrDuplicateBinding,
+				override.ID(),
+			)
+		}
+		seen.Add(override.ID())
+	}
+
+	checked := make([]*graph, 0, len(graphs))
+	for _, g := range graphs {
+		graph, err := asGraph(g)
+		if err != nil {
+			return err
+		}
+		checked = append(checked, graph)
+	}
+
 	var unknown []string
 	for _, override := range o.overrides {
 		provided := false
-		for _, g := range graphs {
-			if graph, err := asGraph(g); err == nil && graph.allProvided.Contains(override.ID()) {
+		for _, graph := range checked {
+			if graph.allProvided.Contains(override.ID()) {
 				provided = true
 				break
 			}
@@ -129,6 +165,12 @@ func (o *Overrider) Check(graphs ...Graph) error {
 	if len(unknown) > 0 {
 		sort.Strings(unknown)
 		return fmt.Errorf("%w: %s", ErrUnknownOverride, strings.Join(unknown, ", "))
+	}
+
+	for _, graph := range checked {
+		if _, err := graph.withOverrides(nil, o.overridesFor(graph)); err != nil {
+			return fmt.Errorf("graph %s: %w", graph.name, err)
+		}
 	}
 	return nil
 }

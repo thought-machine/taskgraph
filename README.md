@@ -63,7 +63,9 @@ be tested can take a function for running graphs, and be handed `Overrider.Run` 
   whole, by overriding every key it exposes, but its tasks can't be overridden individually.
 * An `Overrider` holds one set of overrides for something which runs several graphs, such as an
   operator with a graph to create and a graph to delete. Each graph is run with the overrides for the
-  keys it provides, and `Overrider.Check` makes sure that every override is for some graph.
+  keys it provides. `Overrider.Check` finds what would go wrong in any of them without running
+  anything: an override for no graph, a key overridden twice, or some but not all of the keys of a
+  task overridden, which `Run` only finds for the graph it is run with.
 
 `taskgraphtest.Test` and `taskgraphtest.Suite` take `Overrides`, those of a `Test` replacing those
 of its `Suite` for the same key.
