@@ -52,8 +52,8 @@ be tested can take a function for running graphs, and be handed `Overrider.Run` 
 * Overriding a key which no task provides is an error (`ErrUnknownOverride`), which catches
   overrides left behind by a task which has since been renamed or removed. `CheckWithOverrides`
   finds these without running the graph.
-* The override may be absent: `keyClient.BindError(err)` replaces the task with a failure, to see how
-  the tasks which depend on it cope.
+* The override may be absent: `keyClient.BindError(err)` replaces the task's output with an absent,
+  errored binding, to see how the tasks which depend on it cope.
 * The overrides are included in the `Binder` returned, as the results of the tasks they replace would
   have been.
 * Inputs which only a replaced task needed are not required.

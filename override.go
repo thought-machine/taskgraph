@@ -34,7 +34,8 @@ var (
 // it replaces had produced it. The overrides are included in the Binder returned, as the replaced
 // tasks' results would have been, and inputs which only a replaced task needed are not required.
 //
-// An override may be absent, which replaces the task with a failure:
+// An override may be absent, which replaces the task's output with an absent, errored binding, to see
+// how the tasks which depend on it cope:
 //
 //	keyClient.BindError(errUnreachable)
 //
