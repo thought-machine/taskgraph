@@ -64,6 +64,38 @@ type Graph interface {
 	// tasks to listen for context cancellation.
 	Run(ctx context.Context, inputs ...Binding) (Binder, error)
 
+	// RunWithOverrides is Run, with the tasks which provide the keys of the overrides replaced by them.
+	// It is the way to substitute what the tasks of a graph would otherwise create for themselves, such
+	// as clients of other services, in a test:
+	//
+	//	graph.RunWithOverrides(ctx, inputs, []taskgraph.Binding{keyClient.Bind(fakeClient)})
+	//
+	// The task providing the key is not run. If the task provides other keys as well, they must all be
+	// overridden too (ErrPartialOverride), so that the real task's effects can never happen unnoticed.
+	// Tasks which have no other purpose than to produce the inputs of a task which is not run are still
+	// run, as are tasks which depend on the overridden key; they see the override as if the task which
+	// it replaces had produced it. The overrides are included in the Binder returned, as the replaced
+	// tasks' results would have been, and inputs which only a replaced task needed are not required.
+	//
+	// An override may be absent, which replaces the task's output with an absent, errored binding, to
+	// see how the tasks which depend on it cope:
+	//
+	//	keyClient.BindError(errUnreachable)
+	//
+	// Overriding a key which no task provides is an error (ErrUnknownOverride), as is overriding the
+	// same key twice, or overriding a key which is also given as an input. An input for a key which a
+	// task provides is still an error (ErrDuplicateBinding), so a key can only ever be replaced on
+	// purpose.
+	//
+	// Overrides apply to the graph's own tasks. A graph run as a task with AsTask is replaced as a
+	// whole, by overriding every key it exposes, but its tasks can't be overridden individually.
+	RunWithOverrides(ctx context.Context, inputs, overrides []Binding) (Binder, error)
+
+	// Provides reports whether some task in the graph provides the key. It is for something which
+	// has overrides for several graphs, such as an operator with a graph to create and one to delete,
+	// and gives each graph those which are for it: RunWithOverrides rejects any which are not.
+	Provides(key ID) bool
+
 	// AsTask produces a Task which runs this Graph in full to allow composition of graphs. The task
 	// depends on all keys which are required by any task within it and not provided by any task
 	// within it. The task provides only the key IDs passed to this method; and only their bindings
