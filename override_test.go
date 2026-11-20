@@ -47,7 +47,7 @@ func (f *overrideFixture) run(
 	overrides ...tg.Binding,
 ) tg.Binder {
 	t.Helper()
-	result, err := tg.RunWithOverrides(testContext(t), f.graph, inputs, overrides)
+	result, err := f.graph.RunWithOverrides(testContext(t), inputs, overrides)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -146,10 +146,7 @@ func TestOverride_AbsentOverrideFailsTheTask(t *testing.T) {
 		}, []tg.ID{keyA.ID()}, []tg.ID{keyB.ID()}),
 	)))
 
-	result, err := tg.RunWithOverrides(
-		testContext(t),
-		g,
-		[]tg.Binding{keyIn.Bind(1)},
+	result, err := g.RunWithOverrides(testContext(t), []tg.Binding{keyIn.Bind(1)},
 		[]tg.Binding{keyA.BindError(errBoom)},
 	)
 	if err != nil {
@@ -181,10 +178,7 @@ func TestOverride_ConditionalTaskIsReplacedWhateverItsCondition(t *testing.T) {
 			}, keyT),
 		)))
 
-		result, err := tg.RunWithOverrides(
-			testContext(t),
-			g,
-			[]tg.Binding{keyFlag.Bind(flag)},
+		result, err := g.RunWithOverrides(testContext(t), []tg.Binding{keyFlag.Bind(flag)},
 			[]tg.Binding{keyT.Bind(7)},
 		)
 		if err != nil {
@@ -214,10 +208,7 @@ func TestOverride_TasksWhichFedAReplacedTaskStillRunAndDoNotBlock(t *testing.T) 
 		}, keyU),
 	)))
 
-	if _, err := tg.RunWithOverrides(
-		testContext(t),
-		g,
-		[]tg.Binding{f.keyIn.Bind(1)},
+	if _, err := g.RunWithOverrides(testContext(t), []tg.Binding{f.keyIn.Bind(1)},
 		[]tg.Binding{f.keyA.Bind(5)},
 	); err != nil {
 		t.Fatalf("Run() failed: %v", err)
@@ -250,10 +241,7 @@ func TestOverride_InputsOnlyAReplacedTaskNeededAreNotRequired(t *testing.T) {
 		),
 	)))
 
-	if _, err := tg.RunWithOverrides(
-		testContext(t),
-		g,
-		nil,
+	if _, err := g.RunWithOverrides(testContext(t), nil,
 		nil,
 	); !errors.Is(
 		err,
@@ -261,7 +249,7 @@ func TestOverride_InputsOnlyAReplacedTaskNeededAreNotRequired(t *testing.T) {
 	) {
 		t.Errorf("without the override: got %v; want ErrMissingInputs", err)
 	}
-	result, err := tg.RunWithOverrides(testContext(t), g, nil, []tg.Binding{keyA.Bind(4)})
+	result, err := g.RunWithOverrides(testContext(t), nil, []tg.Binding{keyA.Bind(4)})
 	if err != nil {
 		t.Fatalf("with the override: Run() failed: %v", err)
 	}
@@ -311,10 +299,7 @@ func TestOverride_TasksDependingOnReplacedAndOrdinaryKeysDoNotWaitForeverOrDeadl
 		),
 	)))
 
-	result, err := tg.RunWithOverrides(
-		testContext(t),
-		g,
-		[]tg.Binding{keyIn.Bind(1)},
+	result, err := g.RunWithOverrides(testContext(t), []tg.Binding{keyIn.Bind(1)},
 		[]tg.Binding{keyA.Bind(7)},
 	)
 	if err != nil {
@@ -400,10 +385,7 @@ func TestOverride_Errors(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			runsM.Store(0)
-			if _, err := tg.RunWithOverrides(
-				testContext(t),
-				g,
-				tc.inputs,
+			if _, err := g.RunWithOverrides(testContext(t), tc.inputs,
 				tc.overrides,
 			); !errors.Is(
 				err,
@@ -418,16 +400,6 @@ func TestOverride_Errors(t *testing.T) {
 						runsM.Load(),
 					)
 				}
-				if err := tg.CheckWithOverrides(
-					g,
-					tc.inputs,
-					tc.overrides,
-				); !errors.Is(
-					err,
-					tc.wantError,
-				) {
-					t.Errorf("Check(): got %v; want %v", err, tc.wantError)
-				}
 			}
 		})
 	}
@@ -436,10 +408,7 @@ func TestOverride_Errors(t *testing.T) {
 		runsM.Store(0)
 		inputs := []tg.Binding{keyIn.Bind(1)}
 		overrides := []tg.Binding{keyM1.Bind(10), keyM2.Bind(20)}
-		if err := tg.CheckWithOverrides(g, inputs, overrides); err != nil {
-			t.Fatalf("Check(): %v", err)
-		}
-		result, err := tg.RunWithOverrides(testContext(t), g, inputs, overrides)
+		result, err := g.RunWithOverrides(testContext(t), inputs, overrides)
 		if err != nil {
 			t.Fatalf("Run(): %v", err)
 		}
@@ -465,10 +434,7 @@ func TestOverride_GraphRunAsATaskIsReplacedAsAWhole(t *testing.T) {
 	asTask := tgt.Must[tg.Task](t)(inner.AsTask(keyX.ID(), keyY.ID()))
 	outer := tgt.Must[tg.Graph](t)(tg.New("outer", tg.WithTasks(asTask)))
 
-	if _, err := tg.RunWithOverrides(
-		testContext(t),
-		outer,
-		[]tg.Binding{keyIn.Bind(1)},
+	if _, err := outer.RunWithOverrides(testContext(t), []tg.Binding{keyIn.Bind(1)},
 		[]tg.Binding{keyX.Bind(9)},
 	); !errors.Is(
 		err,
@@ -479,10 +445,7 @@ func TestOverride_GraphRunAsATaskIsReplacedAsAWhole(t *testing.T) {
 			err,
 		)
 	}
-	result, err := tg.RunWithOverrides(
-		testContext(t),
-		outer,
-		[]tg.Binding{keyIn.Bind(1)},
+	result, err := outer.RunWithOverrides(testContext(t), []tg.Binding{keyIn.Bind(1)},
 		[]tg.Binding{keyX.Bind(9), keyY.Bind(8)},
 	)
 	if err != nil {
@@ -493,5 +456,24 @@ func TestOverride_GraphRunAsATaskIsReplacedAsAWhole(t *testing.T) {
 	}
 	if got := mustGet(t, keyY, result); got != 8 {
 		t.Errorf("y = %d; want 8", got)
+	}
+}
+
+func TestGraph_Provides(t *testing.T) {
+	f := newOverrideFixture(t)
+
+	for _, tc := range []struct {
+		key  tg.ID
+		want bool
+	}{
+		{f.keyA.ID(), true},
+		{f.keyB.ID(), true},
+		// An input of the graph is not provided by any task in it.
+		{f.keyIn.ID(), false},
+		{tg.NewKey[int]("unknown").ID(), false},
+	} {
+		if got := f.graph.Provides(tc.key); got != tc.want {
+			t.Errorf("Provides(%s) = %v; want %v", tc.key, got, tc.want)
+		}
 	}
 }

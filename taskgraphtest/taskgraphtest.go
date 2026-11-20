@@ -264,7 +264,7 @@ type Test struct {
 	Inputs []tg.Binding
 
 	// Overrides defines bindings which replace the tasks providing their keys, as with
-	// tg.RunWithOverrides; the replaced tasks are not run. Overrides given by the Suite
+	// Graph.RunWithOverrides; the replaced tasks are not run. Overrides given by the Suite
 	// are applied as well, those given here replacing them for the same key.
 	//
 	// The overrides are part of the result, as the replaced tasks' results would have been, so
@@ -322,13 +322,7 @@ func (test Test) Run(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), test.Timeout)
 	defer cancel()
 
-	var result tg.Binder
-	var err error
-	if len(test.Overrides) == 0 {
-		result, err = test.Graph.Run(ctx, test.Inputs...)
-	} else {
-		result, err = tg.RunWithOverrides(ctx, test.Graph, test.Inputs, test.Overrides)
-	}
+	result, err := test.Graph.RunWithOverrides(ctx, test.Inputs, test.Overrides)
 
 	if !errors.Is(err, test.WantError) {
 		t.Fatalf("Difference in error from Graph.Run(): got %v; want %v", err, test.WantError)

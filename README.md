@@ -30,19 +30,19 @@ of these is the `ID` type used in place of slices of keys because Golang slices 
 ## Overriding tasks
 
 A graph's tasks often create things for themselves: clients of other services, say. That makes a
-whole graph hard to test, as there is no way to give it a fake client. `RunWithOverrides` replaces the
-task which provides a key:
+whole graph hard to test, as there is no way to give it a fake client. `Graph.RunWithOverrides`
+replaces the task which provides a key:
 
 ```go
-tg.RunWithOverrides(ctx, graph, inputs, []tg.Binding{keyClient.Bind(fakeClient)})
+graph.RunWithOverrides(ctx, inputs, []tg.Binding{keyClient.Bind(fakeClient)})
 ```
 
 The task providing `keyClient` is not run, and the tasks which depend on it see the fake. This makes
 a graph's dependencies a matter of which keys its tasks provide: anything which a test may want to
 replace should be a key of its own.
 
-It is meant for tests: `Graph.Run` has no way to replace tasks, so code which runs a graph and needs to
-be tested can take a function for running graphs, and be handed `Overrider.Run` by its tests.
+It is meant for tests: code which runs a graph and needs to be tested can take a function for running
+graphs, and be handed one which calls `Graph.Run` in production and `Graph.RunWithOverrides` by its tests.
 
 * An input for a key which a task provides is still an error, so a key is only ever replaced on
   purpose. The same goes for overriding one key twice, or overriding a key which is also an input.
@@ -50,8 +50,8 @@ be tested can take a function for running graphs, and be handed `Overrider.Run` 
   Otherwise the task would still have to run, with all of its effects, with some of its results
   thrown away.
 * Overriding a key which no task provides is an error (`ErrUnknownOverride`), which catches
-  overrides left behind by a task which has since been renamed or removed. `CheckWithOverrides`
-  finds these without running the graph.
+  overrides left behind by a task which has since been renamed or removed. It is found before any
+  task runs.
 * The override may be absent: `keyClient.BindError(err)` replaces the task's output with an absent,
   errored binding, to see how the tasks which depend on it cope.
 * The overrides are included in the `Binder` returned, as the results of the tasks they replace would
@@ -61,11 +61,9 @@ be tested can take a function for running graphs, and be handed `Overrider.Run` 
   caller doesn't want their results.
 * Overrides apply to the graph they are given. A graph run as a task with `AsTask` is replaced as a
   whole, by overriding every key it exposes, but its tasks can't be overridden individually.
-* An `Overrider` holds one set of overrides for something which runs several graphs, such as an
-  operator with a graph to create and a graph to delete. Each graph is run with the overrides for the
-  keys it provides. `Overrider.Check` finds what would go wrong in any of them without running
-  anything: an override for no graph, a key overridden twice, or some but not all of the keys of a
-  task overridden, which `Run` only finds for the graph it is run with.
+* Something which has overrides for several graphs, such as an operator with a graph to create and a
+  graph to delete, can use `Graph.Provides` to give each graph only those which are for it, as
+  overriding a key which a graph doesn't provide is an error.
 
 `taskgraphtest.Test` and `taskgraphtest.Suite` take `Overrides`, those of a `Test` replacing those
 of its `Suite` for the same key.
